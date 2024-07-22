@@ -45,7 +45,7 @@ To use these contracts locally or in your project, follow these steps:
 1. Clone the repository:
 
    ```bash
-   git clone https://github.com/unicornultrafoundation/nft-marketplace-contracts
+   git clone https://github.com/x721-io/market-contracts
 
 2. Install packages and dependencies: `npm install`
 3. Compile contracts: `npx hardhat compile`
