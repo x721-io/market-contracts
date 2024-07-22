@@ -1,6 +1,6 @@
 # U2U Marketplace Smart Contracts Repository
 
-This repository contains smart contracts used for the [U2U NFT marketplace](https://u2nft.io/ "Visit U2U NFT Marketplace").
+This repository contains smart contracts used for the [x721.io](https://x721.io/ "Visit X721 Marketplace").
 
 ## Table of Contents
 
@@ -10,7 +10,7 @@ This repository contains smart contracts used for the [U2U NFT marketplace](http
 
 ## Introduction
 
-This repository serves as a collection of smart contracts developed for U2U NFT Marketplace. The following features have been implemented in the code:
+This repository serves as a collection of smart contracts developed for X721 NFT Marketplace. The following features have been implemented in the code:
 
 - Create a sell (ask) order
 - Create a buy (bid) order
