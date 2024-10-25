@@ -51,8 +51,8 @@ To use these contracts locally or in your project, follow these steps:
 3. Compile contracts: `npx hardhat compile`
 4. Test: `npx hardhat test <scripts/test/script-name.js>`
 5. Deploy:
-- Testnet: `npx hardhat deploy --network u2uTestnet <scripts/deploy/script-name.js>`
-- Mainnet: `npx hardhat deploy --network u2uMainnet <scripts/deploy/script-name.js>`
+- Testnet: `npx hardhat run --network u2uTestnet <scripts/deploy/script-name.js>`
+- Mainnet: `npx hardhat run --network u2uMainnet <scripts/deploy/script-name.js>`
 6. Verify:
 - Testnet: `npx hardhat verify --network u2uTestnet <ContractAddress> <ConstructorParams>`
 - Mainnet: `npx hardhat verify --network u2uMainnet <ContractAddress> <ConstructorParams>`
