@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.6;
+pragma solidity ^0.8.20;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
@@ -10,13 +10,17 @@ import "./libraries/LibStructsMarketplace.sol";
 import "./interfaces/INFTU2U.sol";
 
 contract RoyaltiesRegistry is OwnableUpgradeable {
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  constructor() {
+    _disableInitializers();  
+  }
   uint public constant MAX_FEE = 2000; // 20%
 
   /// @dev stores royalties for token contract, set in setRoyaltiesByToken() method
   mapping(address => LibStructsMarketplace.RoyaltiesSet) public royaltiesByToken;
 
   function initialize() public initializer {
-    __Ownable_init();
+    __Ownable_init(msg.sender);
   }
 
   /// @dev emitted when royalties set for token in

@@ -1,20 +1,12 @@
 // SPDX-License-Identifier: MIT
-pragma solidity 0.7.6;
-
-// For Remix IDE usage
-// import "@openzeppelin/contracts@3.4/token/ERC721/ERC721.sol";
-// import "@openzeppelin/contracts@3.4/token/ERC721/IERC721Metadata.sol";
-// import "@openzeppelin/contracts@3.4/utils/Counters.sol";
+pragma solidity ^0.8.2;
 
 import "@openzeppelin/contracts/token/ERC721/ERC721.sol";
-import "@openzeppelin/contracts/token/ERC721/IERC721Metadata.sol";
-import "@openzeppelin/contracts/utils/Counters.sol";
 
 import "./interfaces/IERC721Modified.sol";
 
 contract NFT is IERC721Modified, ERC721 {
-    using Counters for Counters.Counter;
-    Counters.Counter private _tokenIdCounter;
+    uint256 private _tokenIdCounter;
 
     constructor() ERC721("NFT1", "NFTSYM1") {}
 
@@ -23,18 +15,20 @@ contract NFT is IERC721Modified, ERC721 {
     }
 
     function mintNFT(address to) external override returns (uint) {
-        _tokenIdCounter.increment();
-        _safeMint(to, _tokenIdCounter.current());
+        uint256 tokenId = _tokenIdCounter;
+        _tokenIdCounter = _tokenIdCounter + 1;
+        _safeMint(to, tokenId + 1);
 
-        return _tokenIdCounter.current();
+        return tokenId + 1;
     }
 
     function mintBatchNFT(address to, uint amount) external returns (uint[] memory) {
         uint[] memory tokenIds = new uint[](amount);
         for (uint i = 0; i < amount; i++) {
-            _tokenIdCounter.increment();
-            _safeMint(to, _tokenIdCounter.current());
-            tokenIds[i] = _tokenIdCounter.current();
+            uint256 tokenId = _tokenIdCounter;
+            _tokenIdCounter = _tokenIdCounter + 1;
+            _safeMint(to, tokenId + 1);
+            tokenIds[i] = tokenId + 1;
         }
 
         return tokenIds;

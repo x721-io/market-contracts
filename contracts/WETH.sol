@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.6;
+pragma solidity ^0.8.20;
 
 
 contract FETH {
@@ -28,9 +28,13 @@ contract FETH {
         emit Deposit(msg.sender, msg.value);
     }
     function withdraw(uint wad) public {
-        require(balanceOf[msg.sender] >= wad);
+        require(balanceOf[msg.sender] >= wad, "FETH: insufficient balance");
         balanceOf[msg.sender] -= wad;
-        msg.sender.transfer(wad); // ???
+      
+        // Use call() instead of transfer() for better compatibility
+        (bool success, ) = msg.sender.call{value: wad}("");
+        require(success, "FETH: ETH transfer failed");
+        
         emit Withdrawal(msg.sender, wad);
     }
 
@@ -54,7 +58,7 @@ contract FETH {
     {
         require(balanceOf[src] >= wad);
 
-        if (src != msg.sender && allowance[src][msg.sender] != uint(-1)) {
+        if (src != msg.sender && allowance[src][msg.sender] != type(uint256).max) {
             require(allowance[src][msg.sender] >= wad);
             allowance[src][msg.sender] -= wad;
         }

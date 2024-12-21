@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: GPL-3.0
-pragma solidity 0.7.6;
+pragma solidity ^0.8.20;
 
-interface IKAIDexKRC20 {
+interface IERC20 {
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Transfer(address indexed from, address indexed to, uint256 value);
 

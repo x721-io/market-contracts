@@ -20,6 +20,26 @@
       "address": "0x6ad68ef2aBf88e2048BBe3bfEE795972D2E477E7",
       "txHash": "0xe29c696a9e662d3b55c1069fbf202edc6715e795145270a1b79b3b95a5c57776",
       "kind": "transparent"
+    },
+    {
+      "address": "0x52B9AbD261bB733b44b06148FD30F40290A6E017",
+      "txHash": "0x658e4026c0b2c4ae2dcc944803fad0bcca1ff283947a2f8ce3744523e8a19cc0",
+      "kind": "transparent"
+    },
+    {
+      "address": "0x571E3b002Ee611Fb0Fd240C0cA2C85B6DD4E7E33",
+      "txHash": "0x2dc643e950bedfd8860800e546dd017b46c39d018f2c72e50deff4e5e4001114",
+      "kind": "transparent"
+    },
+    {
+      "address": "0x511D07480Ee6ac8CDE1da324eE2814288594604B",
+      "txHash": "0xa3ed6a684b46c52df9b0581745221d6ff61ed361575cc880395e1131faa698ea",
+      "kind": "transparent"
+    },
+    {
+      "address": "0xA50390e68D26ebF639201A5B6B45a743ab9cF00D",
+      "txHash": "0x08b745d8c48f759cada3662c465981965a5fcec84811a7106db1f72daa1ca8e5",
+      "kind": "transparent"
     }
   ],
   "impls": {
@@ -758,6 +778,130 @@
             "numberOfBytes": "1"
           },
           "t_contract(IRoyaltiesRegistry)5795": {
+            "label": "contract IRoyaltiesRegistry",
+            "numberOfBytes": "20"
+          },
+          "t_uint256": {
+            "label": "uint256",
+            "numberOfBytes": "32"
+          }
+        },
+        "namespaces": {}
+      }
+    },
+    "c084166a7bd1086192de1b4a8d06d47906ce5b5d09dd3db185ccbef03b78a2a8": {
+      "address": "0x95777B97E694E4025B7F5D618D5179594d84F1E0",
+      "txHash": "0xf0cb7a50695ecc13a1ecb7d0fa61176c92ea61e30858841638dea3a63ef89ab2",
+      "layout": {
+        "solcVersion": "0.7.6",
+        "storage": [
+          {
+            "label": "_initialized",
+            "offset": 0,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol:25"
+          },
+          {
+            "label": "_initializing",
+            "offset": 1,
+            "slot": "0",
+            "type": "t_bool",
+            "contract": "Initializable",
+            "src": "@openzeppelin/contracts-upgradeable/proxy/Initializable.sol:30"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "1",
+            "type": "t_array(t_uint256)50_storage",
+            "contract": "ContextUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/utils/ContextUpgradeable.sol:31"
+          },
+          {
+            "label": "_owner",
+            "offset": 0,
+            "slot": "51",
+            "type": "t_address",
+            "contract": "OwnableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:20"
+          },
+          {
+            "label": "__gap",
+            "offset": 0,
+            "slot": "52",
+            "type": "t_array(t_uint256)49_storage",
+            "contract": "OwnableUpgradeable",
+            "src": "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol:74"
+          },
+          {
+            "label": "protocolFeeRecipient",
+            "offset": 0,
+            "slot": "101",
+            "type": "t_address",
+            "contract": "FeeDistributor",
+            "src": "contracts/FeeDistributor.sol:20"
+          },
+          {
+            "label": "marketplaceERC721",
+            "offset": 0,
+            "slot": "102",
+            "type": "t_address",
+            "contract": "FeeDistributor",
+            "src": "contracts/FeeDistributor.sol:21"
+          },
+          {
+            "label": "marketplaceERC1155",
+            "offset": 0,
+            "slot": "103",
+            "type": "t_address",
+            "contract": "FeeDistributor",
+            "src": "contracts/FeeDistributor.sol:22"
+          },
+          {
+            "label": "royaltiesRegistry",
+            "offset": 0,
+            "slot": "104",
+            "type": "t_contract(IRoyaltiesRegistry)7239",
+            "contract": "FeeDistributor",
+            "src": "contracts/FeeDistributor.sol:23"
+          },
+          {
+            "label": "protocolFeePercent",
+            "offset": 0,
+            "slot": "105",
+            "type": "t_uint256",
+            "contract": "FeeDistributor",
+            "src": "contracts/FeeDistributor.sol:24"
+          },
+          {
+            "label": "feeRatioSellerBuyer",
+            "offset": 0,
+            "slot": "106",
+            "type": "t_uint256",
+            "contract": "FeeDistributor",
+            "src": "contracts/FeeDistributor.sol:27"
+          }
+        ],
+        "types": {
+          "t_address": {
+            "label": "address",
+            "numberOfBytes": "20"
+          },
+          "t_array(t_uint256)49_storage": {
+            "label": "uint256[49]",
+            "numberOfBytes": "1568"
+          },
+          "t_array(t_uint256)50_storage": {
+            "label": "uint256[50]",
+            "numberOfBytes": "1600"
+          },
+          "t_bool": {
+            "label": "bool",
+            "numberOfBytes": "1"
+          },
+          "t_contract(IRoyaltiesRegistry)7239": {
             "label": "contract IRoyaltiesRegistry",
             "numberOfBytes": "20"
           },
