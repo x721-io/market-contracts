@@ -1,12 +1,11 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.6;
+pragma solidity ^0.8.20;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./libraries/LibStructsMarketplace.sol";
 
@@ -14,8 +13,6 @@ import "./interfaces/IRoyaltiesRegistry.sol";
 import "./interfaces/INFTU2U.sol";
 
 contract FeeDistributor is OwnableUpgradeable {
-  using SafeMathUpgradeable for uint;
-  using SafeERC20Upgradeable for IERC20Upgradeable;
 
   address public protocolFeeRecipient;
   address public marketplaceERC721;
@@ -36,7 +33,7 @@ contract FeeDistributor is OwnableUpgradeable {
     uint _feePercent,
     uint _feeRatioSellerBuyer
   ) public initializer {
-    __Ownable_init();
+    __Ownable_init(msg.sender);
     require(_feePercent <= 500, "U2U: max fee");
     marketplaceERC721 = _marketplaceERC721;
     marketplaceERC1155 = _marketplaceERC1155;
@@ -86,9 +83,9 @@ contract FeeDistributor is OwnableUpgradeable {
 
     uint remaining = value;
     if (protocolFeeRecipient != address(0)) {
-      uint fee = price.mul(protocolFeePercent).div(10000);
-      remaining = value.sub(fee);
-      IERC20Upgradeable(quoteToken).safeTransfer(protocolFeeRecipient, fee);
+      uint fee = price * protocolFeePercent / 10000;
+      remaining = value - fee;
+      ERC20Upgradeable(quoteToken).transfer(protocolFeeRecipient, fee);
     }
 
     LibStructsMarketplace.RoyaltiesType royaltiesType = royaltiesRegistry.getRoyaltiesType(nft);
@@ -97,18 +94,18 @@ contract FeeDistributor is OwnableUpgradeable {
     if (royaltiesType == LibStructsMarketplace.RoyaltiesType.Collection) {
       LibStructsMarketplace.Part[] memory royalties = royaltiesRegistry.getRoyalties(nft, tokenId);
       sumRoyalties = _transferRoyalties(quoteToken, price, royalties);
-      remaining = remaining.sub(sumRoyalties);
+      remaining = remaining - sumRoyalties;
     } else {
       try INFTU2U(nft).getRaribleV2Royalties(tokenId) returns (LibStructsMarketplace.Part[] memory _royalties) {
         sumRoyalties = _transferRoyalties(quoteToken, price, _royalties);
-        remaining = remaining.sub(sumRoyalties);
+        remaining = remaining - sumRoyalties;
       } catch {}
     }
 
     if (msg.sender == marketplaceERC721) {
-      IERC20Upgradeable(quoteToken).safeTransfer(marketplaceERC721, remaining);
+      ERC20Upgradeable(quoteToken).transfer(marketplaceERC721, remaining);
     } else if (msg.sender == marketplaceERC1155) {
-      IERC20Upgradeable(quoteToken).safeTransfer(marketplaceERC1155, remaining);
+      ERC20Upgradeable(quoteToken).transfer(marketplaceERC1155, remaining);
     }
 
     return remaining;
@@ -122,20 +119,20 @@ contract FeeDistributor is OwnableUpgradeable {
 
     // Calculate Royalties & netReceived
     if (protocolFeeRecipient != address(0)) {
-      feeSeller = price.mul(protocolFeePercent.mul(feeRatioSellerBuyer).div(10000)).div(10000);
-      feeBuyer = price.mul(protocolFeePercent.mul(uint(10000).sub(feeRatioSellerBuyer)).div(10000)).div(10000);
-      netReceived = price.sub(feeSeller);
+      feeSeller = (price * protocolFeePercent * feeRatioSellerBuyer) / 100000000;
+      feeBuyer = (price * protocolFeePercent * (10000 - feeRatioSellerBuyer)) / 100000000;
+      netReceived = price - feeSeller;
     }
 
     LibStructsMarketplace.RoyaltiesType royaltiesType = royaltiesRegistry.getRoyaltiesType(nft);
     if (royaltiesType == LibStructsMarketplace.RoyaltiesType.Collection) {
       LibStructsMarketplace.Part[] memory royalties = royaltiesRegistry.getRoyalties(nft, tokenId);
       royaltiesFee = _calculateRoyalties(price, royalties);
-      netReceived = netReceived.sub(royaltiesFee);
+      netReceived = netReceived - royaltiesFee;
     } else {
       try INFTU2U(nft).getRaribleV2Royalties(tokenId) returns (LibStructsMarketplace.Part[] memory _royalties) {
         royaltiesFee = _calculateRoyalties(price, _royalties);
-        netReceived = netReceived.sub(royaltiesFee);
+        netReceived = netReceived - royaltiesFee;
       } catch {}
     }
 
@@ -146,7 +143,7 @@ contract FeeDistributor is OwnableUpgradeable {
     uint feeBuyer = 0;
 
     if (protocolFeeRecipient != address(0)) {
-      feeBuyer = price.mul(protocolFeePercent.mul(uint(10000).sub(feeRatioSellerBuyer)).div(10000)).div(10000);
+      feeBuyer = (price * protocolFeePercent * (10000 - feeRatioSellerBuyer)) / 100000000;
     }
 
     return (feeBuyer);
@@ -158,10 +155,10 @@ contract FeeDistributor is OwnableUpgradeable {
   ) private pure returns (uint) {
     uint sumRoyalties = 0;
     if (royalties.length > 0) {
-      for (uint i = 0; i < royalties.length; i = i.add(1)) {
+      for (uint i = 0; i < royalties.length; i = i + 1) {
         if (royalties[i].value > 0) {
-          uint royaltyFee = price.mul(royalties[i].value).div(10000);
-          sumRoyalties = sumRoyalties.add(royaltyFee);
+          uint256 royaltyFee = (price * royalties[i].value) / 10000;
+          sumRoyalties = sumRoyalties + royaltyFee;
         }
       }
     }
@@ -177,11 +174,11 @@ contract FeeDistributor is OwnableUpgradeable {
     // require(royalties.length > 0, "U2U: royalties length = 0");
     uint sumRoyalties = 0;
     if (royalties.length > 0) {
-      for (uint i = 0; i < royalties.length; i = i.add(1)) {
+      for (uint i = 0; i < royalties.length; i = i + 1) {
         if (royalties[i].value > 0) {
-          uint royaltyFee = price.mul(royalties[i].value).div(10000);
-          sumRoyalties = sumRoyalties.add(royaltyFee);
-          IERC20Upgradeable(quoteToken).safeTransfer(royalties[i].account, royaltyFee);
+          uint royaltyFee = price * royalties[i].value / 10000;
+          sumRoyalties = sumRoyalties + royaltyFee;
+          ERC20Upgradeable(quoteToken).transfer(royalties[i].account, royaltyFee);
         }
       }
     }

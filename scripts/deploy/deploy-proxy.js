@@ -6,10 +6,10 @@ async function main() {
 
   console.log("Deploying contracts with the account:", deployer.address);
   // const feeReceipient = '0x7c5d333f2ce3e919E5B17a237f223D6bAa35a345';
-  const feeReceipient = '0x46D45Fc0A462FCc234e8f410FdDeFF02142fC029';
-  const weth = '0x79538ce1712498fD1b9A9861E62acB257d7506fC';
+  const feeReceipient = '0x0d3C3d95dF3c9e71d39fd00Eb842026713ad64fE';
+  const weth = '0xA99cf32e9aAa700f9E881BA9BF2C57A211ae94df';
 
-  const ERC721NFTMarketplace = await ethers.getContractFactory("ERC721NFTMarketplace");
+  const ERC721NFTMarketplace = await ethers.getContractFactory("ERC721NFTMarketplaceV2");
   const erc721NFTMarketplace = await upgrades.deployProxy(
     ERC721NFTMarketplace,
     ['0x0000000000000000000000000000000000000000', weth]
@@ -43,6 +43,13 @@ async function main() {
     ]
   );
   await feeDistributor.waitForDeployment();
+  const addressFeeDistributor = await feeDistributor.getAddress();
+
+  await erc721NFTMarketplace.setFeeDistributor(addressFeeDistributor);
+  console.log("Set FeeDistributor for ERC721 Marketplace");
+  
+  await erc1155NFTMarketplace.setFeeDistributor(addressFeeDistributor);
+  console.log("Set FeeDistributor for ERC1155 Marketplace");
 
   console.log("erc721NFTMarketplace address:", addressERC721NFTMarketplace);
   console.log("erc1155NFTMarketplace address:", addressERC1155NFTMarketplace);

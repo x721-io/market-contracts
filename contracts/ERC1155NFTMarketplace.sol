@@ -1,16 +1,14 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.6;
+pragma solidity ^0.8.2;
 pragma abicoder v2;
 
 import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/CountersUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC1155/IERC1155Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155HolderUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/ERC1155Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC1155/utils/ERC1155HolderUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
 
 import "./libraries/LibStructsMarketplace.sol";
 
@@ -23,9 +21,15 @@ contract ERC1155NFTMarketplace is
   ERC1155HolderUpgradeable,
   OwnableUpgradeable
 {
-  using SafeMathUpgradeable for uint256;
-  using SafeERC20Upgradeable for IERC20Upgradeable;
-  using CountersUpgradeable for CountersUpgradeable.Counter;
+
+  uint256 private _askIds;
+  uint256 private _offerIds;
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  constructor() {
+    _askIds = 0;
+    _offerIds = 0;
+    _disableInitializers();  
+  }
 
   struct Ask {
     address seller;
@@ -46,8 +50,6 @@ contract ERC1155NFTMarketplace is
     uint feePerUnit;
   }
 
-  CountersUpgradeable.Counter private _askIds;
-  CountersUpgradeable.Counter private _offerIds;
 
   mapping(uint256 => Ask) public asks;
   mapping(uint256 => Offer) public offers;
@@ -103,7 +105,7 @@ contract ERC1155NFTMarketplace is
   IFeeDistributor public feeDistributor;
 
   function initialize(address _feeDistributor, address _weth) public initializer {
-    __Ownable_init();
+    __Ownable_init(msg.sender);
     WETH = _weth;
     feeDistributor = IFeeDistributor(_feeDistributor);
   }
@@ -137,15 +139,15 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: _pricePerUnit must be greater than zero"
     );
 
-    _askIds.increment();
-    IERC1155Upgradeable(_nft).safeTransferFrom(
+    _askIds += 1;
+    ERC1155Upgradeable(_nft).safeTransferFrom(
       _msgSender(),
       address(this),
       _tokenId,
       _quantity,
       ""
     );
-    asks[_askIds.current()] = Ask({
+    asks[_askIds] = Ask({
       seller: _msgSender(),
       nft: _nft,
       tokenId: _tokenId,
@@ -155,7 +157,7 @@ contract ERC1155NFTMarketplace is
     });
 
     emit AskNew(
-      _askIds.current(),
+      _askIds,
       _msgSender(),
       _nft,
       _tokenId,
@@ -187,14 +189,14 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: ask is not in WETH"
     );
     
-    uint256 price = ask.pricePerUnit.mul(quantity);
+    uint256 price = ask.pricePerUnit * quantity;
     (, uint feeBuyer,, uint netReceived) = feeDistributor.calculateFee(price, ask.nft, ask.tokenId);
     require(
-      msg.value >= price.add(feeBuyer),
+      msg.value >= price + feeBuyer,
       "ERC1155NFTMarket: insufficient ETH sent"
     );
 
-    ask.quantity = ask.quantity.sub(quantity);
+    ask.quantity = ask.quantity - quantity;
     IWETH(WETH).deposit{value: msg.value}();
     IWETH(WETH).transfer(address(feeDistributor), msg.value);
     uint256 remaining = feeDistributor.distributeFees(ask.nft, address(WETH), msg.value, ask.tokenId, price);
@@ -202,12 +204,12 @@ contract ERC1155NFTMarketplace is
     IWETH(WETH).transfer(ask.seller, netReceived);
 
     // Transfer excess WETH to feeRecipient
-    remaining = remaining.sub(netReceived);
+    remaining = remaining - netReceived;
     if (remaining > 0) {
       IWETH(WETH).transfer(feeDistributor.protocolFeeRecipient(), remaining);
     }
 
-    IERC1155Upgradeable(ask.nft).safeTransferFrom(
+    ERC1155Upgradeable(ask.nft).safeTransferFrom(
       address(this),
       msg.sender,
       ask.tokenId,
@@ -219,7 +221,7 @@ contract ERC1155NFTMarketplace is
         delete asks[askId];
     }
 
-    uint protocolFee = price.mul(feeDistributor.protocolFeePercent()).div(10000);
+    uint protocolFee = (price * feeDistributor.protocolFeePercent()) / 10000;
 
     emit Buy(askId, msg.sender, quantity, price, netReceived);
     emit ProtocolFee(protocolFee);
@@ -248,17 +250,17 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: _quantity and _price must be greater than zero"
     );
 
-    uint256 totalPrice = _pricePerUnit.mul(_quantity);
+    uint256 totalPrice = _pricePerUnit * _quantity;
     (,uint feeBuyer,,) = feeDistributor.calculateFee(totalPrice, _nft, _tokenId);
-    uint feePerUnit = feeBuyer.div(_quantity);
+    uint feePerUnit = feeBuyer / _quantity;
     require(feePerUnit > 0, "U2U: fee = 0");
-    require(msg.value >= totalPrice.add(feeBuyer));
+    require(msg.value >= totalPrice + feeBuyer);
 
     // Convert ETH to WETH
     IWETH(WETH).deposit{value: msg.value}();
 
-    _offerIds.increment();
-    offers[_offerIds.current()] = Offer({
+    _offerIds += 1;
+    offers[_offerIds] = Offer({
       buyer: msg.sender,
       nft: _nft,
       tokenId: _tokenId,
@@ -269,7 +271,7 @@ contract ERC1155NFTMarketplace is
     });
 
     emit OfferNew(
-      _offerIds.current(),
+      _offerIds,
       msg.sender,
       _nft,
       _tokenId,
@@ -289,7 +291,7 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: only seller"
     );
     Ask memory ask = asks[askId];
-    IERC1155Upgradeable(ask.nft).safeTransferFrom(
+    ERC1155Upgradeable(ask.nft).safeTransferFrom(
       address(this),
       ask.seller,
       ask.tokenId,
@@ -320,18 +322,18 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: _quantity and _pricePerUnit must be greater than zero"
     );
 
-    uint256 totalPrice = _pricePerUnit.mul(_quantity);
+    uint256 totalPrice = _pricePerUnit * _quantity;
     (,uint feeBuyer,,) = feeDistributor.calculateFee(totalPrice, _nft, _tokenId);
-    uint feePerUnit = feeBuyer.div(_quantity);
+    uint feePerUnit = feeBuyer / _quantity;
     require(feePerUnit > 0, "U2U: fee = 0");
 
-    _offerIds.increment();
-    IERC20Upgradeable(_quoteToken).safeTransferFrom(
+    _offerIds += 1;
+    ERC20Upgradeable(_quoteToken).transferFrom(
       _msgSender(),
       address(this),
-      totalPrice.add(feeBuyer)
+      totalPrice + feeBuyer
     );
-    offers[_offerIds.current()] = Offer({
+    offers[_offerIds] = Offer({
       buyer: _msgSender(),
       nft: _nft,
       tokenId: _tokenId,
@@ -341,7 +343,7 @@ contract ERC1155NFTMarketplace is
       feePerUnit: feePerUnit
     });
     emit OfferNew(
-      _offerIds.current(),
+      _offerIds,
       _msgSender(),
       _nft,
       _tokenId,
@@ -361,9 +363,9 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: only offer owner"
     );
     Offer memory offer = offers[offerId];
-    IERC20Upgradeable(offer.quoteToken).safeTransfer(
+    ERC20Upgradeable(offer.quoteToken).transfer(
       offer.buyer,
-      offer.feePerUnit.mul(offer.quantity).add(offer.pricePerUnit.mul(offer.quantity))
+      (offer.feePerUnit * offer.quantity) + (offer.pricePerUnit * offer.quantity)
     );
     delete offers[offerId];
     emit OfferCancel(offerId);
@@ -385,25 +387,25 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: quantity must be greater than zero and less than seller's quantity"
     );
     require(address(feeDistributor) != address(0), "U2U: feeDistributor 0");
-    offer.quantity = offer.quantity.sub(quantity);
+    offer.quantity = offer.quantity - quantity;
 
-    uint256 price = offer.pricePerUnit.mul(quantity);
+    uint256 price = offer.pricePerUnit * quantity;
     (, uint feeBuyer ,, uint netReceived) = feeDistributor.calculateFee(price, offer.nft, offer.tokenId);
-    require(feeBuyer.div(quantity) == offer.feePerUnit, "U2U: fee changed");
+    require(feeBuyer / quantity == offer.feePerUnit, "U2U: fee changed");
 
     if (netReceived % 2 == 1) {
-      netReceived = netReceived.sub(1);
+      netReceived = netReceived - 1;
     }
 
-    uint value = price.add(feeBuyer);
-    IERC20Upgradeable(offer.quoteToken).safeTransfer(address(feeDistributor), value);
+    uint value = price + feeBuyer;
+    ERC20Upgradeable(offer.quoteToken).transfer(address(feeDistributor), value);
     uint remaining = feeDistributor.distributeFees(offer.nft, offer.quoteToken, value, offer.tokenId, price);
-    IERC20Upgradeable(offer.quoteToken).safeTransfer(_msgSender(), netReceived);
-    remaining = remaining.sub(netReceived);
+    ERC20Upgradeable(offer.quoteToken).transfer(_msgSender(), netReceived);
+    remaining = remaining - netReceived;
     if (remaining > 0) {
-      IERC20Upgradeable(offer.quoteToken).safeTransfer(feeDistributor.protocolFeeRecipient(), remaining);
+      ERC20Upgradeable(offer.quoteToken).transfer(feeDistributor.protocolFeeRecipient(), remaining);
     }
-    IERC1155Upgradeable(offer.nft).safeTransferFrom(
+    ERC1155Upgradeable(offer.nft).safeTransferFrom(
       _msgSender(),
       offer.buyer,
       offer.tokenId,
@@ -413,7 +415,7 @@ contract ERC1155NFTMarketplace is
     if (offer.quantity == 0) {
       delete offers[offerId];
     }
-    uint protocolFee = price.mul(feeDistributor.protocolFeePercent()).div(10000);
+    uint protocolFee = (price * feeDistributor.protocolFeePercent()) / 10000;
     emit OfferAccept(offerId, _msgSender(), quantity, price, netReceived);
     emit ProtocolFee(protocolFee);
   }
@@ -434,29 +436,29 @@ contract ERC1155NFTMarketplace is
       "ERC1155NFTMarket: quantity must be greater than zero and less than seller's quantity"
     );
     require(address(feeDistributor) != address(0), "U2U: feeDistributor 0");
-    uint256 price = ask.pricePerUnit.mul(quantity);
+    uint256 price = ask.pricePerUnit * quantity;
     (, uint feeBuyer,, uint netReceived) = feeDistributor.calculateFee(price, ask.nft, ask.tokenId);
 
-    ask.quantity = ask.quantity.sub(quantity);
+    ask.quantity = ask.quantity - quantity;
     if (netReceived % 2 == 1) {
-      netReceived = netReceived.sub(1);
+      netReceived = netReceived - 1;
     }
     
-    uint value = price.add(feeBuyer);
-    IERC20Upgradeable(ask.quoteToken).safeTransferFrom(
+    uint value = price + feeBuyer;
+    ERC20Upgradeable(ask.quoteToken).transferFrom(
       _msgSender(),
       address(this),
       value
     );
-    IERC20Upgradeable(ask.quoteToken).safeTransfer(address(feeDistributor), value);
+    ERC20Upgradeable(ask.quoteToken).transfer(address(feeDistributor), value);
     uint256 remaining = feeDistributor.distributeFees(ask.nft, ask.quoteToken, value, ask.tokenId, price);
-    IERC20Upgradeable(ask.quoteToken).safeTransfer(ask.seller, netReceived);
-    remaining = remaining.sub(netReceived);
+    ERC20Upgradeable(ask.quoteToken).transfer(ask.seller, netReceived);
+    remaining = remaining - netReceived;
     if (remaining > 0) {
-      IERC20Upgradeable(ask.quoteToken).safeTransfer(feeDistributor.protocolFeeRecipient(), remaining);
+      ERC20Upgradeable(ask.quoteToken).transfer(feeDistributor.protocolFeeRecipient(), remaining);
     }
     
-    IERC1155Upgradeable(ask.nft).safeTransferFrom(
+    ERC1155Upgradeable(ask.nft).safeTransferFrom(
       address(this),
       _msgSender(),
       ask.tokenId,
@@ -468,7 +470,7 @@ contract ERC1155NFTMarketplace is
       delete asks[askId];
     }
 
-    uint protocolFee = price.mul(feeDistributor.protocolFeePercent()).div(10000);
+    uint protocolFee = (price * feeDistributor.protocolFeePercent()) / 10000;
     emit Buy(askId, _msgSender(), quantity, price, netReceived);
     emit ProtocolFee(protocolFee);
   }

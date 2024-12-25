@@ -1,16 +1,17 @@
 // SPDX-License-Identifier: MIT
 
-pragma solidity 0.7.6;
-pragma abicoder v2;
+pragma solidity ^0.8.20;
 
-import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721HolderUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/utils/EnumerableSetUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC721/IERC721Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/token/ERC20/SafeERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/utils/ERC721HolderUpgradeable.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC721/ERC721Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/ERC20Upgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/math/SafeMathUpgradeable.sol";
+import "@openzeppelin/contracts/utils/math/Math.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardUpgradeable.sol";
 
 import "./libraries/LibStructsMarketplace.sol";
 
@@ -23,10 +24,13 @@ contract ERC721NFTMarketplaceV2 is
   OwnableUpgradeable,
   ReentrancyGuardUpgradeable
 {
-  using EnumerableSetUpgradeable for EnumerableSetUpgradeable.AddressSet;
-  using EnumerableSetUpgradeable for EnumerableSetUpgradeable.UintSet;
-  using SafeMathUpgradeable for uint256;
-  using SafeERC20Upgradeable for IERC20Upgradeable;
+  /// @custom:oz-upgrades-unsafe-allow constructor
+  constructor() {
+    _disableInitializers();  
+  }
+
+  using EnumerableSet for EnumerableSet.AddressSet;
+  using EnumerableSet for EnumerableSet.UintSet;
 
   IFeeDistributor public feeDistributor;
 
@@ -100,7 +104,7 @@ contract ERC721NFTMarketplaceV2 is
   }
 
   function initialize(address _feeDistributor, address _weth) public initializer {
-    __Ownable_init();
+    __Ownable_init(msg.sender);
     WETH = _weth;
     feeDistributor = IFeeDistributor(_feeDistributor);
   }
@@ -126,7 +130,7 @@ contract ERC721NFTMarketplaceV2 is
     // Verify price is not too low/high
     require(_price > 0, "Ask: Price must be greater than zero");
 
-    IERC721Upgradeable(_nft).safeTransferFrom(_msgSender(), address(this), _tokenId);
+    ERC721Upgradeable(_nft).safeTransferFrom(_msgSender(), address(this), _tokenId);
     asks[_nft][_tokenId] = Ask({
       seller: _msgSender(),
       quoteToken: _quoteToken,
@@ -146,7 +150,7 @@ contract ERC721NFTMarketplaceV2 is
       asks[_nft][_tokenId].seller == _msgSender(),
       "Ask: only seller"
     );
-    IERC721Upgradeable(_nft).safeTransferFrom(address(this), _msgSender(), _tokenId);
+    ERC721Upgradeable(_nft).safeTransferFrom(address(this), _msgSender(), _tokenId);
     delete asks[_nft][_tokenId];
     emit AskCancel(_msgSender(), _nft, _tokenId);
   }
@@ -164,8 +168,9 @@ contract ERC721NFTMarketplaceV2 is
     address _quoteToken,
     uint256 _price
   ) external notContract nonReentrant {
-    require(asks[_nft][_tokenId].seller != address(0), "token is not sell");
-    IERC20Upgradeable(_quoteToken).safeTransferFrom(
+
+    require(asks[_nft][_tokenId].seller != address(0), "Token is not sell");
+    ERC20Upgradeable(_quoteToken).transferFrom(
       _msgSender(),
       address(this),
       _price
@@ -178,26 +183,27 @@ contract ERC721NFTMarketplaceV2 is
     uint256[] memory tokenIds,
     address quoteToken
   ) external notContract nonReentrant {
+
     require(nfts.length == tokenIds.length && nfts.length > 0, "U2U: invalid length");
     uint256 totalPrice;
     
-    for (uint256 i = 0; i < nfts.length; i = i.add(1)) {
+    for (uint256 i = 0; i < nfts.length; i = i + 1) {
       Ask memory ask = asks[nfts[i]][tokenIds[i]];
-      totalPrice = totalPrice.add(ask.price);
+      totalPrice = totalPrice + ask.price;
       require(quoteToken == ask.quoteToken, "U2U: Incorrect quote token");
     }
     
     uint256 totalFee = feeDistributor.calculateBuyerProtocolFee(totalPrice);
-    IERC20Upgradeable(quoteToken).safeTransferFrom(
+    ERC20Upgradeable(quoteToken).transferFrom(
       _msgSender(),
       address(this),
-      totalPrice.add(totalFee)
+      totalPrice + totalFee
     );
     
-    for (uint256 i = 0; i < nfts.length; i = i.add(1)) {
+    for (uint256 i = 0; i < nfts.length; i = i + 1) {
       Ask memory ask = asks[nfts[i]][tokenIds[i]];
       (, uint256 feeBuyer,,) = feeDistributor.calculateFee(ask.price, nfts[i], tokenIds[i]);
-      _buy(nfts[i], tokenIds[i], quoteToken, ask.price.add(feeBuyer));
+      _buy(nfts[i], tokenIds[i], quoteToken, ask.price + feeBuyer);
     }
   }
 
@@ -207,29 +213,35 @@ contract ERC721NFTMarketplaceV2 is
     address _quoteToken,
     uint256 _price
   ) private {
+    // Checks
     require(address(feeDistributor) != address(0), "U2U: feeDistributor 0");
     Ask memory ask = asks[_nft][_tokenId];
+    require(ask.seller != address(0), "Token is not sell");
+    require(ask.quoteToken == _quoteToken, "Buy: Incorrect quote token");
 
     (, uint feeBuyer,, uint netReceived) = feeDistributor.calculateFee(ask.price, _nft, _tokenId);
-    require(_price >= ask.price.add(feeBuyer), "U2U: not enough");
-    require(ask.quoteToken == _quoteToken, "Buy: Incorrect qoute token");
+    require(_price >= ask.price + feeBuyer, "U2U: Not enough");
 
     if (netReceived % 2 == 1) {
-      netReceived = netReceived.sub(1);
+      netReceived = netReceived - 1;
     }
+
+    uint protocolFee = (ask.price * feeDistributor.protocolFeePercent()) / 10000;
     
-    IERC20Upgradeable(_quoteToken).safeTransfer(address(feeDistributor), _price);
-    uint256 remaining = feeDistributor.distributeFees(_nft, _quoteToken, _price, _tokenId, ask.price);
-    IERC20Upgradeable(_quoteToken).safeTransfer(ask.seller, netReceived);
-    remaining = remaining.sub(netReceived);
-    if (remaining > 0) {
-      IERC20Upgradeable(_quoteToken).safeTransfer(feeDistributor.protocolFeeRecipient(), remaining);
-    }
-    
-    IERC721Upgradeable(_nft).safeTransferFrom(address(this), _msgSender(), _tokenId);
-    uint protocolFee = ask.price.mul(feeDistributor.protocolFeePercent()).div(10000);
-    
+    // Effects - Update state before interactions
     delete asks[_nft][_tokenId];
+    
+    // Interactions - External calls last
+    ERC20Upgradeable(_quoteToken).transfer(address(feeDistributor), _price);
+    uint256 remaining = feeDistributor.distributeFees(_nft, _quoteToken, _price, _tokenId, ask.price);
+    ERC20Upgradeable(_quoteToken).transfer(ask.seller, netReceived);
+    remaining = remaining - netReceived;
+    if (remaining > 0) {
+      ERC20Upgradeable(_quoteToken).transfer(feeDistributor.protocolFeeRecipient(), remaining);
+    }
+    
+    ERC721Upgradeable(_nft).safeTransferFrom(address(this), _msgSender(), _tokenId);
+    
     emit Trade(
       ask.seller,
       _msgSender(),
@@ -257,26 +269,73 @@ contract ERC721NFTMarketplaceV2 is
   }
 
   function buyUsingEthBatch(address[] memory nfts, uint256[] memory tokenIds) external payable nonReentrant notContract {
+    // Checks
     require(nfts.length == tokenIds.length && nfts.length > 0, "U2U: invalid length");
-    uint256 totalPrice;
+    require(address(feeDistributor) != address(0), "U2U: feeDistributor 0");
     
-    for (uint256 i = 0; i < nfts.length; i = i.add(1)) {
+    uint256 totalPrice;
+    Ask[] memory batchAsks = new Ask[](nfts.length);
+    uint256[] memory feeBuyers = new uint256[](nfts.length);
+    uint256[] memory netReceiveds = new uint256[](nfts.length);
+    
+    // Load and validate all asks first
+    for (uint256 i = 0; i < nfts.length; i++) {
       Ask memory ask = asks[nfts[i]][tokenIds[i]];
-      totalPrice = totalPrice.add(ask.price);
+      require(ask.seller != address(0), "token is not sell");
+      
+      totalPrice = totalPrice + ask.price;
+      (, feeBuyers[i],, netReceiveds[i]) = feeDistributor.calculateFee(ask.price, nfts[i], tokenIds[i]);
+      
+      if (netReceiveds[i] % 2 == 1) {
+        netReceiveds[i] = netReceiveds[i] - 1;
+      }
+      
+      batchAsks[i] = ask;
     }
     
     uint256 totalFee = feeDistributor.calculateBuyerProtocolFee(totalPrice);
-    require(msg.value >= totalPrice.add(totalFee), "U2U: not enough");
+    require(msg.value >= totalPrice + totalFee, "U2U: not enough");
+    require(totalPrice + totalFee > 0, "Total price must be greater than 0");
+    
+    // Effects - Update state before interactions
+    for (uint256 i = 0; i < nfts.length; i++) {
+      delete asks[nfts[i]][tokenIds[i]];
+    }
+    
+    // Interactions - External calls last
     IWETH(WETH).deposit{value: msg.value}();
-    for (uint256 i = 0; i < nfts.length; i = i.add(1)) {
-      Ask memory ask = asks[nfts[i]][tokenIds[i]];
-      (, uint256 feeBuyer,,) = feeDistributor.calculateFee(ask.price, nfts[i], tokenIds[i]);
-      _buy(nfts[i], tokenIds[i], WETH, ask.price.add(feeBuyer));
+    
+    for (uint256 i = 0; i < nfts.length; i++) {
+      Ask memory ask = batchAsks[i];
+      uint256 price = ask.price + feeBuyers[i];
+      
+      ERC20Upgradeable(WETH).transfer(address(feeDistributor), price);
+      uint256 remaining = feeDistributor.distributeFees(nfts[i], WETH, price, tokenIds[i], ask.price);
+      ERC20Upgradeable(WETH).transfer(ask.seller, netReceiveds[i]);
+      remaining = remaining - netReceiveds[i];
+      if (remaining > 0) {
+        ERC20Upgradeable(WETH).transfer(feeDistributor.protocolFeeRecipient(), remaining);
+      }
+      
+      ERC721Upgradeable(nfts[i]).safeTransferFrom(address(this), _msgSender(), tokenIds[i]);
+      
+      uint protocolFee = (ask.price * feeDistributor.protocolFeePercent()) / 10000;
+      
+      emit Trade(
+        ask.seller,
+        _msgSender(),
+        nfts[i],
+        tokenIds[i],
+        WETH,
+        price,
+        netReceiveds[i]
+      );
+      emit ProtocolFee(protocolFee);
     }
   }
 
   /**
-   * @notice Create a offer
+   * @notice Accept bid
    * @param _nft: contract address of the NFT
    * @param _tokenId: tokenId of the NFT
    * @param _bidder: address of bidder
@@ -297,27 +356,27 @@ contract ERC721NFTMarketplaceV2 is
     require(bid.quoteToken == _quoteToken, "AcceptBid: invalid quoteToken");
 
     if (netReceived % 2 == 1) {
-      netReceived = netReceived.sub(1);
+      netReceived = netReceived - 1;
     }
 
     address seller = asks[_nft][_tokenId].seller;
     if (seller == _msgSender()) {
-      IERC721Upgradeable(_nft).safeTransferFrom(address(this), _bidder, _tokenId);
+      ERC721Upgradeable(_nft).safeTransferFrom(address(this), _bidder, _tokenId);
     } else {
       seller = _msgSender();
-      IERC721Upgradeable(_nft).safeTransferFrom(seller, _bidder, _tokenId);
+      ERC721Upgradeable(_nft).safeTransferFrom(seller, _bidder, _tokenId);
     }
 
-    uint value = bid.price.add(bid.feePaid);
-    IERC20Upgradeable(_quoteToken).safeTransfer(address(feeDistributor), value);
+    uint value = bid.price + bid.feePaid;
+    ERC20Upgradeable(_quoteToken).transfer(address(feeDistributor), value);
     uint256 remaining = feeDistributor.distributeFees(_nft, _quoteToken, value, _tokenId, bid.price);
-    IERC20Upgradeable(_quoteToken).safeTransfer(seller, netReceived);
-    remaining = remaining.sub(netReceived);
+    ERC20Upgradeable(_quoteToken).transfer(seller, netReceived);
+    remaining = remaining - netReceived;
     if (remaining > 0) {
-      IERC20Upgradeable(_quoteToken).safeTransfer(feeDistributor.protocolFeeRecipient(), remaining);
+      ERC20Upgradeable(_quoteToken).transfer(feeDistributor.protocolFeeRecipient(), remaining);
     }
 
-    uint protocolFee = bid.price.mul(feeDistributor.protocolFeePercent()).div(10000);
+    uint protocolFee = (bid.price * feeDistributor.protocolFeePercent()) / 10000;
 
     delete asks[_nft][_tokenId];
     delete bids[_nft][_tokenId][_bidder];
@@ -340,10 +399,10 @@ contract ERC721NFTMarketplaceV2 is
     uint256 _price
   ) external notContract nonReentrant {
     (,uint feeBuyer,,) = feeDistributor.calculateFee(_price, _nft, _tokenId);
-    IERC20Upgradeable(_quoteToken).safeTransferFrom(
+    ERC20Upgradeable(_quoteToken).transferFrom(
       _msgSender(),
       address(this),
-      _price.add(feeBuyer)
+      _price + feeBuyer
     );
     _createBid(_nft, _tokenId, _quoteToken, _price, feeBuyer);
   }
@@ -374,7 +433,7 @@ contract ERC721NFTMarketplaceV2 is
     uint _price
   ) external payable notContract nonReentrant {
     (,uint feeBuyer,,) = feeDistributor.calculateFee(_price, _nft, _tokenId);
-    require(msg.value >= _price.add(feeBuyer), "U2U: not enough");
+    require(msg.value >= _price + feeBuyer, "U2U: not enough");
     IWETH(WETH).deposit{value: msg.value}();
     _createBid(_nft, _tokenId, WETH, _price, feeBuyer);
   }
@@ -386,7 +445,7 @@ contract ERC721NFTMarketplaceV2 is
   function _cancelBid(address _nft, uint256 _tokenId) private {
     BidEntry memory bid = bids[_nft][_tokenId][_msgSender()];
     require(bid.price > 0, "Bid: bid not found");
-    IERC20Upgradeable(bid.quoteToken).safeTransfer(_msgSender(), bid.price.add(bid.feePaid));
+    ERC20Upgradeable(bid.quoteToken).transfer(_msgSender(), bid.price + bid.feePaid);
     delete bids[_nft][_tokenId][_msgSender()];
     emit CancelBid(_msgSender(), _nft, _tokenId);
   }
