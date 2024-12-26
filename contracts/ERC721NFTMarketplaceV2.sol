@@ -96,6 +96,7 @@ contract ERC721NFTMarketplaceV2 is
     uint256 _tokenId
   );
   event ProtocolFee(uint256 protocolFee);
+  event FeeDistributorUpdated(address indexed newFeeDistributor);
 
   modifier notContract() {
     require(!_isContract(msg.sender), "Contract not allowed");
@@ -112,6 +113,7 @@ contract ERC721NFTMarketplaceV2 is
   function setFeeDistributor(address newFeeDistributor) external onlyOwner {
     require(newFeeDistributor != address(0), "U2U: zero address");
     feeDistributor = IFeeDistributor(newFeeDistributor);
+    emit FeeDistributorUpdated(newFeeDistributor);
   }
 
   /**

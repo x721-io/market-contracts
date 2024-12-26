@@ -25,6 +25,10 @@ contract RoyaltiesRegistry is OwnableUpgradeable {
 
   /// @dev emitted when royalties set for token in
   event RoyaltiesSetForContract(address indexed token, LibStructsMarketplace.Part[] royalties);
+  /// @dev emitted when royalties initialized for token
+  event RoyaltiesInitialized(address indexed token);
+  /// @dev emitted when royalties removed for token
+  event RoyaltiesRemoved(address indexed token);
   /// @dev sets royalties for token contract in royaltiesByToken mapping and royalties type = 1
   function setRoyaltiesByToken(address token, LibStructsMarketplace.Part[] memory royalties) external {
     _checkOwner(token);
@@ -45,11 +49,13 @@ contract RoyaltiesRegistry is OwnableUpgradeable {
   function initializeRoyaltiesByToken(address token) external {
     _checkOwner(token);
     royaltiesByToken[token].initialized = true;
+    emit RoyaltiesInitialized(token);
   }
 
   function removeRoyaltiesByToken(address token) external {
     _checkOwner(token);
     delete royaltiesByToken[token];
+    emit RoyaltiesRemoved(token);
   }
 
   /// @dev checks if msg.sender is owner of this contract or owner of the token contract
